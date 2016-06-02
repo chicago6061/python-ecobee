@@ -37,6 +37,21 @@ class Thermostat(object):
     def runtime(self):
         """Runtime status dict"""
         return self._status.get('runtime', {})
+    
+    @property
+    def events(self):
+        """Events status dict"""
+        return self._status.get('events', [])
+    
+    @property
+    def alerts(self):
+        """Alerts status dict"""
+        return self._status.get('alerts', [])
+    
+    @property
+    def program(self):
+        """Program status dict"""
+        return self._status.get('program', {})
 
     @property
     def running(self):
@@ -108,7 +123,7 @@ class Thermostat(object):
 
     @property
     def target_temperature(self):
-        """Return target humidity, independent of mode"""
+        """Return target temperature, independent of mode"""
 
         if not self.runtime:
             return None
@@ -137,6 +152,12 @@ class Thermostat(object):
         if not self.runtime:
             return None
         return self.runtime.get('actualHumidity')
+    
+    @property
+    def current_hold(self):
+        if not self.events:
+            return None
+        return self.events[0].get('holdClimateRef')
 
 
     def get_sensor(self, id):
@@ -159,6 +180,13 @@ class Thermostat(object):
         if self.id in self.poll():
             return self._eapi.update(self.id)
 
+    def sendMessage(self, text, **kwargs):
+        """Send message"""
+        self._eapi.sendMessage(self.id, text, **kwargs)
+
+    def ackMessage(self, ackRef, **kwargs):
+        """Acknowledge message"""
+        self._eapi.ackMessage(self.id, ackRef, **kwargs)
 
     def setHold(self, **kwargs):
         """Set a hold"""

@@ -42,7 +42,7 @@ class Client(object):
        eapi = ecobee.Client(apikey, themostat_ids)
 
     """
-    def __init__(self, apikey, scope='smartWrite', thermostat_ids=None, authfile=None, authstore=None):
+    def __init__(self, apikey, scope='smartWrite', thermostat_ids=None, authfile=None, authstore=None, level=logging.ERROR):
         """
           apikey:         your API key in the 'Developer' panel on ecobee.com
           scope:          Default: smartWrite
@@ -52,7 +52,8 @@ class Client(object):
           authstore:      Provide your own dict-like authentication cache store
 
         """
-
+	requests.packages.urllib3.disable_warnings()
+        logging.basicConfig(filename='ecobee.log',level=level)
         self.log = logging.getLogger(__name__)
         self.scope = scope
         self.apikey = apikey
@@ -227,7 +228,7 @@ You have {expiry} minutes.
         return data
 
 
-    def update(self, thermostat_ids=None, includeProgram=False, includeEvents=False):
+    def update(self, thermostat_ids=None, includeProgram=False, includeEvents=False, includeAlerts=False):
         """Update cached info about the thermostats.  Calls API endpoint /thermostat """
 
         # none specified, use them all
@@ -245,7 +246,7 @@ You have {expiry} minutes.
         data = self.get("thermostat", {
             "selection": {
                 "selectionType":  "thermostats",
-                "selectionMatch": ":".join(thermostat_ids),
+                "selectionMatch": ",".join(thermostat_ids),
                 "includeEquipmentStatus":   True,
                 "includeDevice":            True,
                 "includeSettings":          True,
@@ -253,6 +254,7 @@ You have {expiry} minutes.
                 'includeSensors':           True,
                 "includeProgram":           includeProgram,
                 "includeEvents":            includeEvents,
+                "includeAlerts":            includeAlerts,
             }
         })
         for thermostat in data['thermostatList']:
@@ -304,11 +306,44 @@ You have {expiry} minutes.
             'includeSensors': includeSensors,
             'selection': {
                 "selectionType":  "thermostats",
-                "selectionMatch": ":".join(thermostat_ids),
+                "selectionMatch": ",".join(thermostat_ids),
             }
         }
         return self.get('runtimeReport', data)
 
+    def sendMessage(self, thermostat_id, text):
+        """Send a message"""
+
+        return self.post('thermostat', {
+            "selection": {
+                "selectionType":  "thermostats",
+                "selectionMatch": thermostat_id,
+            },
+            "functions": [{
+                "type": "sendMessage",
+                "params": {
+                    "text": text,
+                }
+            }]
+        })
+    
+    def ackMessage(self, thermostat_id, ackRef):
+        """Acknowledge a message"""
+
+        return self.post('thermostat', {
+            "selection": {
+                "selectionType":  "thermostats",
+                "selectionMatch": thermostat_id,
+            },
+            "functions": [{
+                "type": "acknowledge",
+                "params": {
+                    "thermostatIdentifier": thermostat_id,
+                    "ackRef": ackRef,
+                    "ackType": "accept",
+                }
+            }]
+        })
 
     def resumeProgram(self, thermostat_id):
         """Resumes the program"""
@@ -444,11 +479,12 @@ You have {expiry} minutes.
             if not r.ok:
                 self._handle_error(r)
             else:
+                self.log.debug(r.json())
                 return r.json()
 
         except requests.exceptions.ConnectionError as e:
             self.log.error(e)
-            raise EcobeeException("Connection error: {}".format(e)) from None
+            raise EcobeeException("Connection error: {}".format(e))
 
 
     def post(self, endpoint, data):
@@ -467,7 +503,7 @@ You have {expiry} minutes.
         except requests.exceptions.ConnectionError as e:
             self.log.error(e)
             self.log.error(r.request)
-            raise EcobeeException("Connection error: {}".format(e)) from None
+            raise EcobeeException("Connection error: {}".format(e))
 
 
     def _handle_error(self, response):
@@ -493,7 +529,7 @@ You have {expiry} minutes.
         # failed to parse the JSON so this must be bad
         except ValueError:
             self.log.error("Response not JSON: {}".format(response.text))
-            raise EcobeeException("Response not JSON: {}".format(response.text)) from None
+            raise EcobeeException("Response not JSON: {}".format(response.text)) 
 
 
     def _raw_get(self, endpoint, **kwargs):
@@ -504,7 +540,7 @@ You have {expiry} minutes.
             return requests.get(url, params=kwargs, headers=h)
         except requests.exceptions.ConnectionError as e:
             self.log.error(e)
-            raise EcobeeException("Connection error: {}".format(e)) from None
+            raise EcobeeException("Connection error: {}".format(e))
 
 
     def _raw_post(self, endpoint, **kwargs):
@@ -515,4 +551,4 @@ You have {expiry} minutes.
             return requests.post(url, params=kwargs, headers=h)
         except requests.exceptions.ConnectionError as e:
             self.log.error(e)
-            raise EcobeeException("Connection error: {}".format(e)) from None
+            raise EcobeeException("Connection error: {}".format(e))
