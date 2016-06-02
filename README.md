@@ -38,9 +38,3 @@ Implementation is of course up to the reader.
 Ecobee has lots of great documentation here:
   https://www.ecobee.com/home/developer/api/documentation/v1/index.shtml
 
-
-## Python version
-
-This library was designed to work with Python 3.  It seems to work with 2.7.10,
-but I haven't done any real testing, and probably don't intend to.
-
